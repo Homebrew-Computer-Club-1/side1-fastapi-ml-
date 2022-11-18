@@ -1,6 +1,10 @@
-from typing import List
+
 from fastapi import FastAPI
 from pydantic import BaseModel
+from time import time
+import json
+from fastapi.encoders import jsonable_encoder
+
 
 import numpy as np
 import pandas as pd
@@ -59,16 +63,16 @@ class Classification(object):
                     
         return k_users
 
-class channelIds(BaseModel):
-    topicIds: List[str]
+class topicIds(BaseModel):
+    topicIds: list[str]
 
 class Dataset(BaseModel):
-    kind: str
-    etag: str
-    id: str
-    topicDetails: channelIds
+    google_id: str
+    like_data: str
+    subs_data: list[topicIds]
 
-
+class User(BaseModel):
+    data: list[Dataset]
 
 
 @app.get("/")
@@ -80,11 +84,21 @@ async def get_data(item: Dataset):
     topicId = item.topicDetails
     return topicId
 
+def flatten(l):
+    return [item for sublist in l for item in sublist]
 
 
 @app.post("/result/matching")
-async def match_making(data: List[channelIds]):
-    topicId_list = pd.DataFrame(np.array(data))
+async def match_making(data: User):
+    rawdata = []
+    subsdata = []
+    data_subsdata = jsonable_encoder(data)
+    for i in data_subsdata:
+        rawdata.append(i)
+        for j in range(len(rawdata)):
+            subsdata = rawdata[j][2]
+            flatten(subsdata)
+    topicId_list = pd.DataFrame(np.array(subsdata))
     cl = Classification(topicId_list)
     cl.Extraction()
     cl.ls
@@ -94,7 +108,7 @@ async def match_making(data: List[channelIds]):
     result = cl.Kmeans()
     result
     k_users = cl.ReturnResult_cosine_similarity()
-    return k_users
+    return {'k_users': k_users}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="http://127.0.0.1/", port=8000)
